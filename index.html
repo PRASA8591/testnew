@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ERP Pro Advanced</title>
+<title>ERP Cloud</title>
 <script src="https://unpkg.com/dexie@3/dist/dexie.js"></script>
 
 <style>
@@ -14,31 +14,34 @@
 body{margin:0;font-family:Segoe UI;background:var(--bg);color:var(--text)}
 .hidden{display:none!important}
 
-/* LOGIN */
-#loginPage{height:100vh;display:flex;align-items:center;justify-content:center;
-background:linear-gradient(135deg,#020617,#1e3a8a)}
-.login-box{background:#1e293b;padding:25px;border-radius:12px;width:300px}
+/* ADV LOGIN */
+#loginPage{
+height:100vh;display:flex;align-items:center;justify-content:center;
+background:linear-gradient(135deg,#020617,#1e3a8a);
+}
+.login-box{
+background:rgba(255,255,255,0.05);
+backdrop-filter:blur(15px);
+padding:30px;border-radius:15px;width:320px;
+box-shadow:0 10px 40px rgba(0,0,0,0.5);
+}
+input,button{width:100%;padding:12px;margin:8px 0;border-radius:8px;border:none}
+input{background:#020617;color:#fff}
+button{background:var(--accent);color:#fff;cursor:pointer}
 
 /* LOADER */
-#loader{position:fixed;width:100%;height:100%;background:#020617;
-display:flex;align-items:center;justify-content:center;font-size:22px}
+#loader{
+position:fixed;width:100%;height:100%;
+background:#020617;display:flex;align-items:center;justify-content:center;
+font-size:22px;
+}
 
 /* APP */
 .app{display:flex;height:100vh}
 .sidebar{width:220px;background:#020617;padding:10px}
-.sidebar button{width:100%;margin:5px 0;background:#1e293b;color:#fff}
+.sidebar button{width:100%;margin:5px 0;background:#1e293b}
 .main{flex:1;padding:20px;overflow:auto}
-
-/* UI */
-input,button,select{padding:10px;margin:5px;border-radius:8px;border:none}
-input,select{background:#020617;color:#fff}
-button{background:var(--accent);cursor:pointer}
 .card{background:var(--card);padding:12px;margin:8px 0;border-radius:10px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
-.row{display:flex;gap:5px}
-
-/* TOAST */
-.toast{position:fixed;bottom:20px;right:20px;background:#3b82f6;padding:10px;border-radius:8px}
 
 </style>
 
@@ -50,7 +53,7 @@ button{background:var(--accent);cursor:pointer}
 
 <div id="loginPage">
 <div class="login-box">
-<h2>Login</h2>
+<h2>ERP Login</h2>
 <input id="username" placeholder="Username">
 <input id="password" type="password" placeholder="Password">
 <button onclick="login()">Login</button>
@@ -66,23 +69,20 @@ button{background:var(--accent);cursor:pointer}
 
 <div id="app" class="app hidden">
 <div class="sidebar">
-<button onclick="go('dashboard')">Dashboard</button>
-<button onclick="go('pos')">POS</button>
-<button onclick="go('items')">Items</button>
-<button onclick="go('users')">Users</button>
-<button onclick="go('reports')">Reports</button>
-<button onclick="resetDB()">Reset DB</button>
+<button onclick="go('#/dashboard')">Dashboard</button>
+<button onclick="go('#/pos')">POS</button>
+<button onclick="go('#/items')">Items</button>
+<button onclick="go('#/users')">Users</button>
+<button onclick="go('#/reports')">Reports</button>
 <button onclick="logout()">Logout</button>
 </div>
 <div id="content" class="main"></div>
 </div>
 
-<div id="toast" class="toast hidden"></div>
-
 <script>
 
-// DATABASE
-const db = new Dexie("ERP_PRO");
+// DB
+const db = new Dexie("ERP_GITHUB");
 db.version(1).stores({
 users:"++id,name,username,password",
 items:"++id,name,price,stock",
@@ -108,8 +108,12 @@ await initDB();
 loader.classList.add("hidden");
 app.classList.remove("hidden");
 localStorage.setItem("login",1);
-go("dashboard");
-},600);
+
+// default route
+if(!location.hash) location.hash="#/dashboard";
+else route();
+
+},500);
 
 }else msg.innerText="Invalid login";
 }
@@ -118,71 +122,91 @@ go("dashboard");
 if(localStorage.getItem("login")){
 loginPage.classList.add("hidden");
 loader.classList.remove("hidden");
-setTimeout(()=>{loader.classList.add("hidden");app.classList.remove("hidden");go("dashboard");},400);
+
+setTimeout(()=>{
+loader.classList.add("hidden");
+app.classList.remove("hidden");
+route();
+},400);
 }
 
 // LOGOUT
-function logout(){localStorage.clear();location.reload();}
+function logout(){localStorage.clear();location.hash="";location.reload();}
 
 // ROUTER
-function go(p){pages[p]()}
+window.addEventListener("hashchange", route);
+
+function go(path){
+location.hash = path;
+}
+
+async function route(){
+await initDB();
+
+let hash = location.hash || "#/dashboard";
+let parts = hash.split("/");
+
+let page = parts[1];
+let id = parts[2];
+
+if(page==="users" && id) return openUser(id);
+if(page==="items" && id) return openItem(id);
+
+pages[page]?.();
+}
 
 // PAGES
 const pages={
 
 async dashboard(){
-await initDB();
 let u=await db.users.count();
 let i=await db.items.count();
 let s=await db.sales.count();
 
 content.innerHTML=`
 <h2>Dashboard</h2>
-<div class="grid">
 <div class="card">Users: ${u}</div>
 <div class="card">Items: ${i}</div>
-<div class="card">Sales: ${s}</div>
-</div>`;
+<div class="card">Sales: ${s}</div>`;
 },
 
 async users(){
-await initDB();
 let list=await db.users.toArray();
 
 content.innerHTML=`
 <h2>Users</h2>
-<input id="searchU" placeholder="Search" oninput="loadUsers()">
-<div class="row">
 <input id="uname" placeholder="Name">
 <input id="uuser" placeholder="Username">
 <input id="upass" placeholder="Password">
 <button onclick="addUser()">Add</button>
-</div>
 <div id="userList"></div>`;
 
-renderUsers(list);
+userList.innerHTML=list.map(u=>
+`<div class="card">
+${u.name}
+<button onclick="go('#/users/${u.id}')">Open</button>
+</div>`).join("");
 },
 
 async items(){
-await initDB();
 let list=await db.items.toArray();
 
 content.innerHTML=`
 <h2>Items</h2>
-<input id="searchI" placeholder="Search" oninput="loadItems()">
-<div class="row">
 <input id="iname" placeholder="Name">
 <input id="iprice" placeholder="Price">
 <input id="istock" placeholder="Stock">
 <button onclick="addItem()">Add</button>
-</div>
 <div id="itemList"></div>`;
 
-renderItems(list);
+itemList.innerHTML=list.map(i=>
+`<div class="card">
+${i.name}
+<button onclick="go('#/items/${i.id}')">Open</button>
+</div>`).join("");
 },
 
 async pos(){
-await initDB();
 let items=await db.items.toArray();
 
 content.innerHTML=`
@@ -194,114 +218,57 @@ content.innerHTML=`
 <button onclick="checkout()">Checkout</button>`;
 },
 
-async reports(){
-await initDB();
-let sales=await db.sales.toArray();
-let total=sales.reduce((a,b)=>a+b.total,0);
-
-content.innerHTML=`
-<h2>Reports</h2>
-<div class="card">Total Sales: ${total}</div>`;
+reports(){
+content.innerHTML=`<h2>Reports</h2>`;
 }
 
 };
 
-// USERS
+// OPEN DETAILS
+async function openUser(id){
+let u=await db.users.get(Number(id));
+content.innerHTML=`<h2>${u.name}</h2><p>${u.username}</p>
+<button onclick="go('#/users')">Back</button>`;
+}
+
+async function openItem(id){
+let i=await db.items.get(Number(id));
+content.innerHTML=`<h2>${i.name}</h2>
+<p>Price: ${i.price}</p>
+<p>Stock: ${i.stock}</p>
+<button onclick="go('#/items')">Back</button>`;
+}
+
+// ADD
 async function addUser(){
 await db.users.add({name:uname.value,username:uuser.value,password:upass.value});
-toast("User Added"); go("users");
+route();
 }
-
-function renderUsers(list){
-userList.innerHTML=list.map(u=>`
-<div class="card">${u.name}
-<button onclick="delUser(${u.id})">Delete</button>
-</div>`).join("");
-}
-
-async function loadUsers(){
-let s=searchU.value.toLowerCase();
-let all=await db.users.toArray();
-renderUsers(all.filter(x=>x.name.toLowerCase().includes(s)));
-}
-
-async function delUser(id){
-await db.users.delete(id);
-toast("Deleted"); go("users");
-}
-
-// ITEMS
 async function addItem(){
 await db.items.add({name:iname.value,price:+iprice.value,stock:+istock.value});
-toast("Item Added"); go("items");
-}
-
-function renderItems(list){
-itemList.innerHTML=list.map(i=>`
-<div class="card">${i.name}
-<button onclick="delItem(${i.id})">Delete</button>
-</div>`).join("");
-}
-
-async function loadItems(){
-let s=searchI.value.toLowerCase();
-let all=await db.items.toArray();
-renderItems(all.filter(x=>x.name.toLowerCase().includes(s)));
-}
-
-async function delItem(id){
-await db.items.delete(id);
-toast("Deleted"); go("items");
+route();
 }
 
 // POS
 let CART=[];
 async function addCart(){
-let id=+itemSel.value;
+let item=await db.items.get(+itemSel.value);
 let q=+qty.value;
-let item=await db.items.get(id);
 
-if(!item || item.stock<q) return toast("Stock issue");
+if(item.stock<q) return alert("Stock low");
 
-CART.push({id,name:item.name,qty:q,total:item.price*q});
-renderCart();
-}
-
-function renderCart(){
-cart.innerHTML=CART.map(c=>`${c.name} x ${c.qty} = ${c.total}`).join("<br>");
+CART.push({id:item.id,name:item.name,qty:q,total:item.price*q});
+cart.innerHTML=CART.map(c=>`${c.name} x ${c.qty}`).join("<br>");
 }
 
 async function checkout(){
-let total=0;
-
 for(let c of CART){
-let item=await db.items.get(c.id);
-item.stock-=c.qty;
-await db.items.put(item);
-total+=c.total;
+let i=await db.items.get(c.id);
+i.stock-=c.qty;
+await db.items.put(i);
 }
-
-await db.sales.add({total,date:new Date()});
-CART=[]; renderCart(); toast("Sale Done");
+CART=[]; route();
 }
-
-// RESET DB
-async function resetDB(){
-await db.delete();
-toast("DB Reset");
-location.reload();
-}
-
-// TOAST
-function toast(t){
-toastDiv.innerText=t;
-toastDiv.classList.remove("hidden");
-setTimeout(()=>toastDiv.classList.add("hidden"),2000);
-}
-const toastDiv=document.getElementById("toast");
-
-// ENTER KEY
-document.addEventListener("keypress",e=>{if(e.key==="Enter")login();});
 
 </script>
 
